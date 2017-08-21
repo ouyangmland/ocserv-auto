@@ -2,7 +2,7 @@
 ####################################################
 #                                                  #
 # This is a ocserv installation for CentOS 7       #
-# Version: 0.1.2 2017-02-03
+# Version: 0.1.0 2016-03-22                        #
 # Author: Travis Lee                               #
 # Website: https://www.stunnel.info                #
 #                                                  #
@@ -132,6 +132,9 @@ function InstallOcserv {
     if [ $(grep epel /etc/yum.repos.d/*.repo | wc -l) -eq 0 ]; then
         yum install -y -q epel-release && yum clean all && yum makecache fast
     fi
+	
+	rpm -ivh https://raw.githubusercontent.com/ouyangmland/ocserv-auto/master/http-parser-2.7.1-3.el7.x86_64.rpm 
+	
     # 安装ocserv
     yum install -y ocserv
 }
@@ -179,7 +182,7 @@ _EOF_
     # 编辑配置文件
     (echo "${password}"; sleep 1; echo "${password}") | ocpasswd -c "${confdir}/ocpasswd" ${username}
 
-    sed -i 's@auth = "pam"@#auth = "pam"\nauth = "plain[passwd=/etc/ocserv/ocpasswd]"@g' "${confdir}/ocserv.conf"
+    sed -i 's@auth = "pam"@#auth = "pam"\nauth = "plain[/etc/ocserv/ocpasswd]"@g' "${confdir}/ocserv.conf"
     sed -i "s/max-same-clients = 2/max-same-clients = ${maxsameclients}/g" "${confdir}/ocserv.conf"
     sed -i "s/max-clients = 16/max-clients = ${maxclients}/g" "${confdir}/ocserv.conf"
     sed -i "s/tcp-port = 443/tcp-port = ${port}/g" "${confdir}/ocserv.conf"
@@ -512,27 +515,11 @@ function ConfigFirewall {
         iptables -I INPUT -p tcp --dport ${port} -j ACCEPT
         iptables -I INPUT -p udp --dport ${port} -j ACCEPT
         iptables -I FORWARD -s ${vpnnetwork} -j ACCEPT
-        iptables -I FORWARD -d ${vpnnetwork} -j ACCEPT
         iptables -t nat -A POSTROUTING -s ${vpnnetwork} -o ${eth} -j MASQUERADE
         #iptables -t nat -A POSTROUTING -j MASQUERADE
         service iptables save
     else
         printf "\e[33mWARNING!!! Either firewalld or iptables is NOT Running! \e[0m\n"
-    fi
-}
-
-function Install-http-parser {
-    if [[ $(rpm -q http-parser | grep -c "http-parser-2.0") = 0 ]]; then
-        mkdir -p /tmp/http-parser-2.0 /opt/lib
-        cd /tmp/http-parser-2.0
-        wget "http://mirrors.aliyun.com/epel/7/x86_64/h/http-parser-2.0-5.20121128gitcd01361.el7.x86_64.rpm"
-        rpm2cpio http-parser-2.0-5.20121128gitcd01361.el7.x86_64.rpm | cpio -div
-        mv usr/lib64/libhttp_parser.so.2* /opt/lib
-        sed -i 'N;/Type=forking/a\Environment=LD_LIBRARY_PATH=/opt/lib' /lib/systemd/system/ocserv.service
-        sed -i 'N;/Type=forking/a\ExecStartPost=/bin/sleep 0.1' /lib/systemd/system/ocserv.service
-        systemctl daemon-reload
-        cd ~
-        rm -rf /tmp/http-parser-2.0
     fi
 }
 
@@ -596,7 +583,6 @@ PrintEnvironmentVariable
 InstallOcserv
 ConfigOcserv
 ConfigFirewall
-#Install-http-parser
 ConfigSystem
 PrintResult
 
